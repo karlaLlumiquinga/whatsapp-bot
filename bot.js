@@ -5,100 +5,248 @@ const { MessagingResponse } = require('twilio').twiml;
 const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 
-// --- BASE DE DATOS SIMULADA ---
-const CATALOGO = {
-    'iphone': '📱 *iPhone 15 Pro*: $999\n📱 *iPhone 14*: $799\n📱 *iPhone 13*: $599',
-    'samsung': '📱 *Samsung S24 Ultra*: $1200\n📱 *Samsung A54*: $350',
-    'xiaomi': '📱 *Xiaomi Note 13*: $250\n📱 *Poco X6*: $300'
+// --- MEMORIA DE SESIÓN (SIMULADA) ---
+// En producción, usar una base de datos (Redis/MongoDB)
+// Estructura: { 'celular_cliente': { paso: 'menu', datos: {} } }
+const sesiones = {};
+
+// --- TEXTOS CONSTANTES (PROMPT NOVA) ---
+const MENSAJES = {
+    SALUDO: `👋 ¡Hola! Bienvenido/a a Mundo Click 7
+Soy NOVA 🤖, tu asistente virtual.
+
+Te ayudo con:
+📱 Celulares y tablets
+💻 Computadoras y laptops
+🧰 Servicio técnico
+🎧 Accesorios
+🏢 Atención a empresas
+
+⏰ Atención automática 24/7
+
+👉 ¿Qué deseas hacer hoy?
+Responde con el número o escribe la opción 👇
+
+1️⃣ Comprar celulares o tablets
+2️⃣ Comprar computadoras o laptops
+3️⃣ Accesorios
+4️⃣ Servicio técnico / reparaciones
+5️⃣ Cotizar precios
+6️⃣ Empresas
+7️⃣ Horarios y ubicación
+8️⃣ Preguntas frecuentes
+9️⃣ Hablar con un asesor humano
+0️⃣ Volver al menú`,
+
+    HORARIO: `👤 Atención humana:
+L–V: 09h00 – 18h00
+S: 09h00 – 13h00
+
+⏳ Fuera de horario, puedo ayudarte y registrar tu mensaje. 
+📍 Estamos ubicados en el Centro de la Ciudad.`,
+
+    DERIVACION: `👤 Te conecto con un asesor de Mundo Click 7
+⏳ Por favor espera un momento...
+
+(Hemos notificado a nuestro equipo de tu consulta)`,
+
+    PRECIOS_BASE: `💰 Precios referenciales:
+
+📱 Celulares desde $120
+📲 Tablets desde $150
+💻 Laptops desde $350
+
+✔️ Cotización sin costo
+✔️ Garantía incluida
+✔️ Soporte técnico
+
+👉 ¿Deseas continuar?
+1️⃣ Sí, quiero cotizar
+2️⃣ Hablar con asesor
+0️⃣ Volver al menú`,
+
+    TECNICO_PRECIOS: `💰 Precios referenciales:
+🔋 Batería desde $25
+📱 Pantalla desde $35
+🧼 Mantenimiento desde $30
+
+📌 Precio final tras diagnóstico.
+
+📅 *Agendemos tu visita*
+Por favor escribe en un solo mensaje:
+• Tu Ciudad
+• Día preferido
+• Marca y modelo del equipo`,
+
+    FIRMA: `
+—
+🤖 NOVA
+Asistente Virtual de Mundo Click 7
+Tecnología · Servicio · Confianza`,
+
+    DEFAULT: `🤔 No entendí esa opción. 
+Por favor responde con el número de la opción (ej: 1) o escribe "Menu" para volver al inicio.`
 };
 
-const SERVICIOS = {
-    'pantalla': '🔧 Cambio de Pantalla: Desde $50 (Varía por modelo). Tiempo: 2 horas.',
-    'bateria': '🔋 Cambio de Batería: $30 - $80. Tiempo: 1 hora.',
-    'revision': '👨‍🔧 Diagnóstico general: $15 (Gratis si realizas la reparación).'
-};
-
-// --- FUNCIÓN INTELIGENTE (SIMULACIÓN IA) ---
-function procesarMensaje(mensaje) {
+function procesarMensaje(mensaje, telefono) {
     const msg = mensaje.toLowerCase().trim();
 
-    // 1. Saludos
-    if (['hola', 'buenas', 'inicio', 'menu'].includes(msg)) {
-        return `👋 *¡Hola! Bienvenido a Celulares & Soporte Tech*
-        
-Soy tu asistente virtual. Por favor elige una opción escribiendo el número:
+    // Inicializar sesión si no existe
+    if (!sesiones[telefono]) {
+        sesiones[telefono] = { paso: 'inicio', intencion: null };
+    }
+    const sesion = sesiones[telefono];
 
-1️⃣ *Ver Celulares en Oferta*
-2️⃣ *Precios de Reparación*
-3️⃣ *Horarios y Ubicación*
-4️⃣ *Hablar con un Humano*
-
-_O simplemente pregúntame algo como "¿Tienen iPhone 15?"_`;
+    // --- COMANDOS GLOBALES ---
+    if (['hola', 'buenas', 'inicio', 'menu', '0'].includes(msg)) {
+        sesion.paso = 'menu';
+        return MENSAJES.SALUDO;
     }
 
-    // 2. Menú Opción 1: Celulares
-    if (msg === '1' || msg.includes('celular') || msg.includes('comprar')) {
-        return `🛒 *Catálogo de Celulares*
-        
-Tenemos las mejores marcas. Escribe la marca que buscas:
-👉 *iPhone*
-👉 *Samsung*
-👉 *Xiaomi*`;
+    if (msg === '9' || msg.includes('asesor') || msg.includes('humano')) {
+        sesion.paso = 'asesor';
+        return MENSAJES.DERIVACION + MENSAJES.FIRMA;
     }
 
-    // 3. Menú Opción 2: Reparaciones
-    if (msg === '2' || msg.includes('reparar') || msg.includes('arreglar')) {
-        return `🛠 *Servicio Técnico Especializado*
-
-¿Qué necesitas reparar? Escribe una palabra clave:
-👉 *Pantalla*
-👉 *Batería*
-👉 *Revisión*`;
+    if (msg === '7' || msg.includes('horario') || msg.includes('ubicacion')) {
+        return MENSAJES.HORARIO + '\n\nEscribe "Menu" para volver.' + MENSAJES.FIRMA;
     }
 
-    // 4. Lógica de "IA" (Keyword Matching)
-    // Busca marcas
-    for (const [marca, info] of Object.entries(CATALOGO)) {
-        if (msg.includes(marca)) return info + '\n\nEscribe *Menu* para volver.';
-    }
+    // --- MÁQUINA DE ESTADOS (FLUJO) ---
+    switch (sesion.paso) {
+        case 'menu':
+            // 2. MENÚ PRINCIPAL
+            if (['1', '2', '5'].includes(msg)) {
+                sesion.paso = 'venta_uso';
+                sesion.intencion = (msg === '1') ? 'celular' : (msg === '2' ? 'computadora' : 'cotizacion');
+                return `Perfecto 😊
+👉 ¿El equipo es para:
+1️⃣ Uso personal
+2️⃣ Trabajo / estudio
+3️⃣ Empresa`;
+            }
+            if (msg === '3') { // Accesorios
+                sesion.paso = 'accesorios';
+                return `🎧 Accesorios disponibles:
+Cargadores · Audífonos · Micas · Carcasas · Cables
 
-    // Busca reparaciones
-    for (const [servicio, info] of Object.entries(SERVICIOS)) {
-        if (msg.includes(servicio)) return info + '\n\n📅 *¡Agenda tu cita escribiendo "Humano"!*';
-    }
+💲 Desde $3
 
-    // 5. Horarios y Ubicación
-    if (msg === '3' || msg.includes('horario') || msg.includes('donde')) {
-        const ahora = new Date();
-        const hora = ahora.getHours(); // Hora del servidor (0-23)
-        const abierto = hora >= 9 && hora < 19; // 9am a 7pm
+1️⃣ Para celular
+2️⃣ Para computadora
+3️⃣ Consultar disponibilidad
+9️⃣ Hablar con asesor`;
+            }
+            if (msg === '4') { // Servicio Técnico
+                sesion.paso = 'tecnico_equipo';
+                return `🧰 ¿Qué equipo deseas reparar?
+1️⃣ Celular
+2️⃣ Laptop / computadora
+3️⃣ Tablet`;
+            }
+            if (msg === '6') { // Empresas
+                sesion.paso = 'empresas';
+                return `🏢 Soluciones empresariales:
+✔️ Equipos corporativos
+✔️ Mantenimiento
+✔️ Soporte técnico
+✔️ Facturación
 
-        return `📍 *Ubicación*: Centro Comercial Tech, Local 45.
-⏰ *Horario*: Lunes a Sábado, 9am - 7pm.
+¿Deseas atención empresarial?
+1️⃣ Sí, me interesa
+9️⃣ Hablar con asesor`;
+            }
+            break; // Fin menu
 
-${abierto ? '🟢 *Estamos ABIERTOS ahora.* ¡Ven a visitarnos!' : '🔴 *Estamos CERRADOS.* Déjanos tu mensaje y te respondemos mañana.'}`;
-    }
+        // --- FLUJO VENTAS (3.x) ---
+        case 'venta_uso':
+            if (['1', '2', '3'].includes(msg)) {
+                sesion.uso = (msg === '1') ? 'personal' : (msg === '2' ? 'trabajo' : 'empresa');
+                sesion.paso = 'venta_gama';
+                return `Gracias 👍
+Te recomendaré equipos con:
+✔️ Buen rendimiento
+✔️ Garantía
+✔️ Excelente precio–calidad
 
-    // 6. Transferencia a Humano
-    if (msg === '4' || msg.includes('humano') || msg.includes('asesor')) {
-        return `👨‍💻 *Conectando con un asesor...*
-        
-Hemos notificado a nuestro equipo. En breve te atenderán por aquí.
-Mientras tanto, ¿puedo ayudarte con otra duda rápida?`;
-    }
+¿Qué gama prefieres?
+1️⃣ Económica
+2️⃣ Intermedia
+3️⃣ Premium`;
+            }
+            break;
 
-    // Default Fallback
-    return `🤔 No entendí bien tu consulta.
-    
-Por favor escribe *Menu* para ver las opciones, o intenta preguntar de otra forma (ej: "precio iphone").`;
+        case 'venta_gama':
+            if (['1', '2', '3'].includes(msg)) {
+                sesion.gama = (msg === '1') ? 'economica' : (msg === '2' ? 'intermedia' : 'premium');
+                sesion.paso = 'venta_precio';
+                return MENSAJES.PRECIOS_BASE;
+            }
+            break;
+
+        case 'venta_precio':
+            if (msg === '1') { // Sí quiere cotizar
+                sesion.paso = 'venta_cierre';
+                return `Perfecto ✅
+Para cotizar necesito que me escribas:
+
+• Marca preferida (ej: Samsung, HP)
+• Presupuesto aproximado`;
+            } else if (msg === '2') {
+                return MENSAJES.DERIVACION + MENSAJES.FIRMA;
+            }
+            break;
+
+        case 'venta_cierre':
+            // Aquí el usuario escribe marca/presupuesto
+            // Lo derivamos a asesor con la Info capturada
+            sesion.paso = 'fin';
+            return `✅ *Solicitud de Cotización Recibida*
+            
+He transferido tus datos (${mensaje}) a un asesor especializado.
+En breve te pondrán opciones exactas para ti.
+\n` + MENSAJES.FIRMA;
+
+        // --- FLUJO TÉCNICO (4.x) ---
+        case 'tecnico_equipo':
+            if (['1', '2', '3'].includes(msg)) {
+                sesion.paso = 'tecnico_problema';
+                return `¿Qué problema presenta?
+1️⃣ Pantalla
+2️⃣ Batería
+3️⃣ Carga
+4️⃣ Lento / mantenimiento
+5️⃣ Otro`;
+            }
+            break;
+
+        case 'tecnico_problema':
+            if (['1', '2', '3', '4', '5'].includes(msg)) {
+                sesion.paso = 'tecnico_agenda';
+                return MENSAJES.TECNICO_PRECIOS;
+            }
+            break;
+
+        case 'tecnico_agenda':
+            // Usuario envía datos de cita
+            sesion.paso = 'fin';
+            return `✅ Solicitud registrada
+👤 Un asesor confirmará tu cita pronto para revisar tu equipo.
+\n` + MENSAJES.FIRMA;
+
+    } // End Switch
+
+    return MENSAJES.DEFAULT;
 }
 
-// --- RUTA WHATSAPP (Webhook) ---
+// --- RUTA WHATSAPP ---
 app.post('/whatsapp', (req, res) => {
     const incomingMsg = req.body.Body || '';
-    console.log(`Mensaje recibido: ${incomingMsg}`);
+    const fromNumber = req.body.From || 'unknown';
 
-    const respuestaTexto = procesarMensaje(incomingMsg);
+    console.log(`Mensaje de ${fromNumber}: ${incomingMsg}`);
+
+    const respuestaTexto = procesarMensaje(incomingMsg, fromNumber);
 
     const twiml = new MessagingResponse();
     twiml.message(respuestaTexto);
@@ -107,12 +255,11 @@ app.post('/whatsapp', (req, res) => {
     res.send(twiml.toString());
 });
 
-// --- RUTA HOME (Para verificar que funciona) ---
 app.get('/', (req, res) => {
-    res.send('🤖 El Bot de WhatsApp está VIVO y escuchando...');
+    res.send('🤖 NOVA Bot está activo 24/7 de Mundo Click 7');
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Servidor escuchando en puerto ${PORT}`);
+    console.log(`Servidor NOVA escuchando en puerto ${PORT}`);
 });
