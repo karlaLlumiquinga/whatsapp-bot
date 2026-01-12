@@ -358,5 +358,5 @@ app.post('/whatsapp', (req, res) => {
     res.send(twiml.toString());
 });
 
-app.get('/', (req, res) => res.send('NOVA Bot v4.0 (Fix State)'));
-app.listen(process.env.PORT || 3000, () => console.log('NOVA Server v4.0 Listening...'));
+app.get('/', (req, res) => res.send('NOVA Bot v4.1 (Force Update) Activo'));
+app.listen(process.env.PORT || 3000, () => console.log('NOVA Server v4.1 Listening...'));
