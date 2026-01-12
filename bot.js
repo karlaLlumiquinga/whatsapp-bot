@@ -37,12 +37,16 @@ async function guardarLead(telefono, accion, detalle) {
     try {
         await doc.loadInfo();
         const sheet = doc.sheetsByIndex[0];
-        await sheet.addRow({
-            fecha: new Date().toLocaleString(),
-            telefono: telefono,
-            accion: accion,
-            detalle: detalle
-        });
+
+        // CORRECCIÓN: Usamos Array para forzar escritura en orden (A, B, C, D)
+        // Se ignoran los nombres de las cabeceras
+        await sheet.addRow([
+            new Date().toLocaleString(), // Columna A
+            telefono,                    // Columna B
+            accion,                      // Columna C
+            detalle                      // Columna D
+        ]);
+
         console.log(`✅ Excel Update: ${telefono}`);
     } catch (error) {
         console.error('❌ Error Excel:', error);
@@ -150,5 +154,5 @@ app.post('/whatsapp', (req, res) => {
     res.send(twiml.toString());
 });
 
-app.get('/', (req, res) => res.send('NOVA Bot v7.0 (Secure Env) 🛡️'));
-app.listen(process.env.PORT || 3000, () => console.log('NOVA v7 Listening...'));
+app.get('/', (req, res) => res.send('NOVA Bot v8.0 (Excel Fix) Activo'));
+app.listen(process.env.PORT || 3000, () => console.log('NOVA v8 Listening...'));
