@@ -6,9 +6,10 @@ const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 
 // --- MEMORIA DE SESIÓN ---
+// Almacena el estado de cada número de teléfono
 const sesiones = {};
 
-// --- TEXTOS DEL SISTEMA NOVA ---
+// --- TEXTOS CONSTANTES ---
 const TXT = {
     SALUDO: `👋 ¡Hola! Bienvenido/a a Mundo Click 7
 Soy NOVA 🤖, tu asistente virtual.
@@ -76,37 +77,42 @@ Para continuar con la cotización necesito:
 0️⃣ Finalizar conversación`
 };
 
-// --- LÓGICA DEL BOT ---
+// --- LÓGICA PRINCIPAL ---
 function procesarMensaje(mensaje, telefono) {
     const msg = mensaje.toLowerCase().trim();
 
-    // Inicializar o recuperar sesión
-    if (!sesiones[telefono]) sesiones[telefono] = { paso: 'inicio' };
+    // 1. GESTIÓN DE SESIÓN
+    if (!sesiones[telefono]) {
+        sesiones[telefono] = { paso: 'menu' }; // CORRECCIÓN: Estado inicial es 'menu'
+    }
     const sesion = sesiones[telefono];
 
-    // --- COMANDOS GLOBALES ---
-    // 1. Saludos / Menú
-    if (['hola', 'buenos días', 'buenas', 'info', 'información', 'menu', 'menú', 'volver', 'regresar', 'inicio', 'start'].includes(msg)) {
+    console.log(`[${telefono}] Paso actual: ${sesion.paso} | Mensaje: ${msg}`);
+
+    // 2. COMANDOS GLOBALES (Resetean o redirigen siempre)
+    if (['hola', 'buenos días', 'buenas', 'info', 'información', 'inicio', 'start'].includes(msg)) {
         sesion.paso = 'menu';
-        return msg.includes('hola') || msg.includes('buenos') || msg.includes('buenas') ? TXT.SALUDO : TXT.MENU_PRINCIPAL;
+        return TXT.SALUDO;
     }
-    // 2. Finalizar
+    if (['menu', 'menú', 'volver', 'regresar'].includes(msg)) {
+        sesion.paso = 'menu';
+        return TXT.MENU_PRINCIPAL;
+    }
     if (['0', 'es todo', 'no', 'gracias', 'nada más'].includes(msg)) {
-        sesion.paso = 'inicio'; // Reset
+        sesion.paso = 'menu'; // Reset al menú para la próxima
         return TXT.DESPEDIDA;
     }
-    // 3. Asesor (Global)
     if (msg === '9' || msg.includes('asesor') || msg.includes('humano')) {
         sesion.paso = 'asesor';
         return TXT.ASESOR;
     }
 
-    // --- MÁQUINA DE ESTADOS ---
+    // 3. MÁQUINA DE ESTADOS
     switch (sesion.paso) {
 
         // --- MENÚ PRINCIPAL ---
         case 'menu':
-            // 1. Celulares
+        case 'inicio': // Redundancia de seguridad
             if (msg === '1' || msg.includes('celular') || msg.includes('tablet')) {
                 sesion.paso = '1_uso';
                 return `Perfecto 😊
@@ -117,7 +123,6 @@ Para ayudarte mejor, dime:
 2️⃣ Trabajo / estudio
 3️⃣ Empresa`;
             }
-            // 2. Laptops
             if (msg === '2' || msg.includes('computadora') || msg.includes('laptop')) {
                 sesion.paso = '2_uso';
                 return `Perfecto 😊
@@ -128,79 +133,61 @@ Para recomendarte mejor, dime:
 2️⃣ Trabajo
 3️⃣ Empresa`;
             }
-            // 3. Accesorios
             if (msg === '3' || msg.includes('accesorio')) {
                 sesion.paso = '3_tipo';
-                return `🎧 Accesorios disponibles en Mundo Click 7:
+                return `🎧 Accesorios disponibles:
 • Cargadores · Audífonos · Micas · Carcasas · Cables
 💲 Precios desde $3
 
-👉 ¿Para qué equipo los necesitas?
+👉 ¿Para qué equipo?
 1️⃣ Celular
 2️⃣ Computadora
-3️⃣ Consultar disponibilidad
-9️⃣ Hablar con un asesor`;
+3️⃣ Consultar
+9️⃣ Asesor`;
             }
-            // 4. Servicio Técnico
             if (msg === '4' || msg.includes('tecnico') || msg.includes('reparar')) {
                 sesion.paso = '4_equipo';
-                return `🧰 Servicio técnico Mundo Click 7
+                return `🧰 Servicio técnico
 
 👉 ¿Qué equipo deseas reparar?
 1️⃣ Celular
 2️⃣ Laptop / computadora
 3️⃣ Tablet`;
             }
-            // 5. Cotizar
             if (msg === '5' || msg.includes('cotizar')) {
-                sesion.paso = 'fin_flujo'; // Espera confirmación
-                return `💰 Cotización sin costo – Mundo Click 7
+                sesion.paso = 'fin_flujo';
+                return `💰 Cotización sin costo
 
-Para ayudarte mejor, indícanos:
-• Producto o servicio que deseas
-• Presupuesto aproximado
-
-📌 Todos nuestros productos incluyen garantía.
+Para ayudarte, indícanos:
+• Producto/Servicio
+• Presupuesto
 
 ` + TXT.CIERRE_FLUJO;
             }
-            // 6. Empresas
             if (msg === '6' || msg.includes('empresa')) {
                 sesion.paso = '6_confirmar';
-                return `🏢 Soluciones empresariales Mundo Click 7
+                return `🏢 Soluciones empresariales
 
-Ofrecemos:
-✔️ Venta de equipos corporativos
-✔️ Mantenimiento preventivo y correctivo
-✔️ Soporte técnico
-✔️ Facturación
+Ofrecemos Equipos, Mantenimiento y Soporte.
 
-👉 ¿Deseas atención empresarial?
+👉 ¿Deseas atención?
 1️⃣ Sí
-9️⃣ Hablar con un asesor
-0️⃣ Finalizar conversación`;
+9️⃣ Asesor`;
             }
-            // 7. Horarios
             if (msg === '7' || msg.includes('horario')) {
-                sesion.paso = 'fin_flujo'; // No requiere más input
-                return `🕘 Horarios de atención humana:
-
+                sesion.paso = 'fin_flujo';
+                return `🕘 Horarios:
 L–V: 09h00 – 18h00
 S: 09h00 – 13h00
 
-🤖 Fuera de horario, puedo ayudarte y registrar tu solicitud.
-
 ` + TXT.CIERRE_FLUJO;
             }
-            // 8. FAQ
             if (msg === '8' || msg.includes('pregunta')) {
                 sesion.paso = 'fin_flujo';
-                return `❓ Preguntas frecuentes – Mundo Click 7
-
-• ¿Tienen garantía? → ✅ Sí, garantía real
-• ¿Aceptan tarjetas? → ✅ Sí
-• ¿Emiten factura? → ✅ Sí
-• ¿Atienden empresas? → ✅ Sí
+                return `❓ FAQ:
+• Garantía: Sí
+• Factura: Sí
+• Tarjetas: Sí
 
 ` + TXT.CIERRE_FLUJO;
             }
@@ -208,35 +195,34 @@ S: 09h00 – 13h00
 
         // --- FLUJO 1: CELULARES ---
         case '1_uso':
-            if (['1', '2', '3'].includes(msg)) {
+            if (msg === '1' || msg.includes('personal')) {
                 sesion.paso = '1_gama';
-                if (msg === '1') { // Personal
-                    return `Gracias 👍
-Según lo que buscas, tenemos estas opciones:
-
-1️⃣ Opción económica (Desde $120)
-2️⃣ Opción intermedia (Desde $180)
-3️⃣ Opción premium (Desde $250)
+                return `Gracias 👍 (Uso Personal)
+Opciones:
+1️⃣ Económica ($120+)
+2️⃣ Intermedia ($180+)
+3️⃣ Premium ($250+)
 
 👉 ¿Cuál prefieres?`;
-                } else if (msg === '2') { // Trabajo
-                    return `Excelente 👍
-Para trabajo o estudio recomendamos equipos con mejor rendimiento:
+            }
+            if (msg === '2' || msg.includes('trabajo') || msg.includes('estudio')) {
+                sesion.paso = '1_gama';
+                return `Excelente 👍 (Trabajo/Estudio)
+Recomendados:
+1️⃣ Económica ($150+)
+2️⃣ Intermedia ($220+)
+3️⃣ Premium ($300+)
 
-1️⃣ Opción económica (Desde $150)
-2️⃣ Opción intermedia (Desde $220)
-3️⃣ Opción premium (Desde $300)
+👉 ¿Cuál deseas?`;
+            }
+            if (msg === '3' || msg.includes('empresa')) {
+                sesion.paso = '1_gama';
+                return `Perfecto 👌 (Empresas)
+Opciones:
+1️⃣ Intermedia ($250+)
+2️⃣ Premium ($350+)
 
-👉 ¿Cuál opción deseas?`;
-                } else { // Empresa
-                    return `Perfecto 👌
-Para empresas ofrecemos equipos con garantía y soporte:
-
-1️⃣ Opción intermedia (Desde $250)
-2️⃣ Opción premium (Desde $350)
-
-👉 ¿Cuál opción deseas?`;
-                }
+👉 ¿Cuál deseas?`;
             }
             break;
 
@@ -249,46 +235,40 @@ Para empresas ofrecemos equipos con garantía y soporte:
 
         // --- FLUJO 2: LAPTOPS ---
         case '2_uso':
-            if (['1', '2', '3'].includes(msg)) {
+            if (msg === '1' || msg.includes('estudio')) {
                 sesion.paso = '2_gama';
-                if (msg === '1') { // Estudio
-                    return `Excelente 👍
-Para estudio recomendamos:
+                return `Excelente 👍 (Estudio)
+1️⃣ Económico ($350+)
+2️⃣ Intermedio ($480+)
+3️⃣ Premium ($650+)
 
-1️⃣ Opción económica ($350+)
-2️⃣ Opción intermedia ($480+)
-3️⃣ Opción premium ($650+)
+👉 ¿Cuál prefieres?`;
+            }
+            if (msg === '2' || msg.includes('trabajo')) {
+                sesion.paso = '2_gama';
+                return `Muy bien 👌 (Trabajo)
+1️⃣ Económico ($420+)
+2️⃣ Intermedio ($550+)
+3️⃣ Premium ($750+)
 
-👉 ¿Cuál opción prefieres?`;
-                } else if (msg === '2') {
-                    return `Muy bien 👌
-Para trabajo recomendamos mayor rendimiento:
+👉 ¿Cuál deseas?`;
+            }
+            if (msg === '3' || msg.includes('empresa')) {
+                sesion.paso = '2_gama';
+                return `Perfecto 🏢 (Empresa)
+1️⃣ Intermedio ($600+)
+2️⃣ Premium ($850+)
 
-1️⃣ Opción económica ($420+)
-2️⃣ Opción intermedia ($550+)
-3️⃣ Opción premium ($750+)
-
-👉 ¿Cuál opción deseas?`;
-                } else {
-                    return `Perfecto 🏢
-Para empresas ofrecemos equipos corporativos:
-
-1️⃣ Opción intermedia ($600+)
-2️⃣ Opción premium ($850+)
-
-👉 ¿Cuál opción deseas?`;
-                }
+👉 ¿Cuál deseas?`;
             }
             break;
 
         case '2_gama':
             if (['1', '2', '3'].includes(msg)) {
                 sesion.paso = 'fin_flujo';
-                return `Perfecto ✅
-Para preparar tu cotización de LAPTOP necesito:
-
-• Marca preferida
-• Presupuesto aproximado
+                return `Para tu laptop, indícame:
+• Marca
+• Presupuesto
 
 ` + TXT.CIERRE_FLUJO;
             }
@@ -296,109 +276,81 @@ Para preparar tu cotización de LAPTOP necesito:
 
         // --- FLUJO 3: ACCESORIOS ---
         case '3_tipo':
-            sesion.paso = 'fin_flujo'; // Se podría extender, pero para simplificar vamos al cierre o captura
-            if (msg === '1') return `Perfecto 📱
-Para accesorios de celular, indícanos:
-• Marca
-• Modelo
-• Tipo de accesorio
-
-` + TXT.CIERRE_FLUJO;
-
-            if (msg === '2') return `Perfecto 💻
-Para accesorios de computadora, indícanos:
-• Tipo de accesorio
-• Marca o modelo del equipo
-
-` + TXT.CIERRE_FLUJO;
-
-            if (msg === '3') return `📦 Para verificar disponibilidad indícanos:
-• Tipo de accesorio
-• Marca y modelo del equipo
-
-` + TXT.CIERRE_FLUJO;
+            sesion.paso = 'fin_flujo';
+            if (msg === '1') return `📱 Celular: Indica Marca/Modelo.` + TXT.CIERRE_FLUJO;
+            if (msg === '2') return `💻 PC: Indica Tipo/Modelo.` + TXT.CIERRE_FLUJO;
+            if (msg === '3') return `📦 Disponibilidad: Indica accesorio exacto.` + TXT.CIERRE_FLUJO;
             break;
 
         // --- FLUJO 4: TÉCNICO ---
         case '4_equipo':
             if (['1', '2', '3'].includes(msg)) {
                 sesion.paso = '4_problema';
-                return `Gracias 👍
-¿Qué problema presenta el equipo?
-
+                return `¿Problema?
 1️⃣ Pantalla
 2️⃣ Batería
 3️⃣ Carga
-4️⃣ Lento / mantenimiento
+4️⃣ Lento
 5️⃣ Otro`;
             }
             break;
 
         case '4_problema':
             sesion.paso = '4_agenda';
-            return `💰 Precios referenciales:
+            return `💰 Precios Ref:
+• Batería: $25+
+• Pantalla: $35+
+• Mantenimiento: $30+
 
-• Cambio de batería: desde $25
-• Pantalla: desde $35
-• Mantenimiento: desde $30
-📌 El precio final depende del modelo y diagnóstico.
-
-👉 ¿Deseas agendar tu visita?
+👉 ¿Agendar visita?
 1️⃣ Sí
 0️⃣ No`;
 
         case '4_agenda':
-            if (msg === '1') { // SI quiere agendar
+            if (msg === '1') {
                 sesion.paso = 'fin_flujo';
-                return `📅 Perfecto, para agendar necesito:
-
-• Día preferido
-• Horario preferido
-• Marca y modelo del equipo
-
-👤 Un asesor confirmará tu cita.
+                return `📅 Para agendar escribe:
+• Día y Hora
+• Marca y Modelo
 
 ` + TXT.CIERRE_FLUJO;
-            }
-            if (msg === '0') {
-                sesion.paso = 'menu';
-                return TXT.MENU_PRINCIPAL;
             }
             break;
 
         // --- FLUJO 6: EMPRESAS ---
         case '6_confirmar':
             if (msg === '1') {
-                sesion.paso = 'fin_flujo';
+                sesion.paso = 'asesor';
                 return TXT.ASESOR;
             }
             break;
 
-        // --- CIERRE DE CUALQUIER FLUJO ---
+        // --- CIERRE ---
         case 'fin_flujo':
-            if (msg === '1') { // Volver al menú
+        case 'asesor': // Si sigue escribiendo despues de pedir asesor
+            if (msg === '1') {
                 sesion.paso = 'menu';
                 return TXT.MENU_PRINCIPAL;
             }
-            // Si escribe cualquier otra cosa, asumimos que es el dato que pidió (marca, fecha, etc)
-            // y cerramos.
-            // NO cambiamos de paso para seguir aceptando inputs hasta que diga '1' o '0'
-            return `✅ Entendido. Hemos tomado nota de tu solicitud.
-Un asesor te responderá pronto.
+            // Mantiene el estado para seguir capturando msg del usuario hasta que decida volver
+            return `✅ Mensaje recibido. Un asesor te responderá.
 
 ` + TXT.CIERRE_FLUJO;
 
-    } // End Switch
+    }
 
-    // Fallback si no entra en ningún case
+    // Default Fallback
     return TXT.ERROR + '\n\n' + TXT.MENU_PRINCIPAL;
 }
 
-// --- CONFIGURACIÓN SERVIDOR ---
+// --- SERVIDOR ---
 app.post('/whatsapp', (req, res) => {
     const incomingMsg = req.body.Body || '';
     const fromNumber = req.body.From || 'unknown';
-    console.log(`Mensaje de ${fromNumber}: ${incomingMsg}`);
+
+    // Logging simple
+    console.log(`MSG de ${fromNumber}: ${incomingMsg}`);
+
     const respuestaTexto = procesarMensaje(incomingMsg, fromNumber);
     const twiml = new MessagingResponse();
     twiml.message(respuestaTexto);
@@ -406,5 +358,5 @@ app.post('/whatsapp', (req, res) => {
     res.send(twiml.toString());
 });
 
-app.get('/', (req, res) => { res.send('🤖 NOVA Bot v3.0 (Full Logic) Activo'); });
-app.listen(process.env.PORT || 3000, () => console.log('NOVA Ready.'));
+app.get('/', (req, res) => res.send('NOVA Bot v4.0 (Fix State)'));
+app.listen(process.env.PORT || 3000, () => console.log('NOVA Server v4.0 Listening...'));
